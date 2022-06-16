@@ -1,47 +1,73 @@
-#include "shell.h"
+#include "main.h"
 
 /**
- * main - main entry point of the program
- * @ac: number of arguments
- * @av: argument list
- * Return: 0 if successful
-*/
-
-int main(void)
-	
+ * free_data - frees data structure
+ *
+ * @datash: data structure
+ * Return: no return
+ */
+void free_data(data_shell *datash)
 {
-	char *buffer, **commands;
-	list_t *linkedlist_path, *env_list;
-	int characters;
-	size_t bufsize = BUFSIZE;
-	
-	buffer = (char *)malloc(bufsize * sizeof(char));
-	if (buffer == NULL)
-	{
-		perror("Unable to allocate buffer");
-		exit(1);
-	}
-	
-	linkedlist_path = path_list();
-	env_list = environ_list();
-	while (1)
-	{
-		if (isatty(STDIN_FILENO)) /* reprompt if in interactive shell */
-			write(STDOUT_FILENO, "$ ", 3);
-		else
-			non_interactive(env_list);
+	unsigned int i;
 
-		signal(SIGINT, ctrl_c); /* makes ctrl+c not work */
-		characters = getline(&buffer, &bufsize, stdin);
-		ctrl_D(characters, buffer, env_list);
-
-		commands = split_line(buffer);
-		if (_builtin(commands[0]))
-			_builtin(commands[0])(commands, linkedlist_path, buffer);
-		else
-			execute(commands, linkedlist_path);
-		free(commands);
+	for (i = 0; datash->_environ[i]; i++)
+	{
+		free(datash->_environ[i]);
 	}
 
-	return (0);
+	free(datash->_environ);
+	free(datash->pid);
+}
+
+/**
+ * set_data - Initialize data structure
+ *
+ * @datash: data structure
+ * @av: argument vector
+ * Return: no return
+ */
+void set_data(data_shell *datash, char **av)
+{
+	unsigned int i;
+
+	datash->av = av;
+	datash->input = NULL;
+	datash->args = NULL;
+	datash->status = 0;
+	datash->counter = 1;
+
+	for (i = 0; environ[i]; i++)
+		;
+
+	datash->_environ = malloc(sizeof(char *) * (i + 1));
+
+	for (i = 0; environ[i]; i++)
+	{
+		datash->_environ[i] = _strdup(environ[i]);
+	}
+
+	datash->_environ[i] = NULL;
+	datash->pid = aux_itoa(getpid());
+}
+
+/**
+ * main - Entry point
+ *
+ * @ac: argument count
+ * @av: argument vector
+ *
+ * Return: 0 on success.
+ */
+int main(int ac, char **av)
+{
+	data_shell datash;
+	(void) ac;
+
+	signal(SIGINT, get_sigint);
+	set_data(&datash, av);
+	shell_loop(&datash);
+	free_data(&datash);
+	if (datash.status < 0)
+		return (255);
+	return (datash.status);
 }
